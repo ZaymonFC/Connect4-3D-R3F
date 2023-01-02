@@ -1,0 +1,38 @@
+{
+  "name": "connect4-advanced",
+  "version": "1.0.0",
+  "description": "isometric 3d scene with billboard sprites",
+  "keywords": [],
+  "main": "src/index.js",
+  "dependencies": {
+    "@react-three/drei": "9.49.0",
+    "@react-three/fiber": "8.9.2",
+    "@types/rx": "4.1.2",
+    "jotai": "^1.12.1",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-scripts": "5.0.1",
+    "react-spring": "9.2.6",
+    "rxjs": "7.8.0",
+    "simplex-noise": "2.4.0",
+    "three": "0.148.0",
+    "use-control": "0.2.1"
+  },
+  "devDependencies": {
+    "@types/react": "^17.0.19",
+    "@types/three": "^0.131.0",
+    "typescript": "^4.3.5"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test --env=jsdom",
+    "eject": "react-scripts eject"
+  },
+  "browserslist": [
+    ">0.2%",
+    "not dead",
+    "not ie <= 11",
+    "not op_mini all"
+  ]
+}
