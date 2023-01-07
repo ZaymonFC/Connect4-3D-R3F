@@ -1,11 +1,11 @@
-import { Center, Cylinder, Line, OrbitControls, PerspectiveCamera, Torus } from "@react-three/drei"
+import { Center, Cylinder, Line, OrbitControls, PerspectiveCamera, RoundedBox, Torus } from "@react-three/drei"
 import { Canvas, useFrame } from "@react-three/fiber"
+import { styled } from "@stitches/react"
 import { atom, useAtom, useAtomValue, useSetAtom } from "jotai"
 import { useControls } from "leva"
 import React, { Suspense, useEffect, useState } from "react"
 import { Vector3 } from "three"
 import { checkForWin, enumerateWinningLines } from "./winningLines"
-import { styled } from "@stitches/react"
 
 function randomHexcode() {
   return (
@@ -356,6 +356,11 @@ const WinBanner = () => {
   )
 }
 
+const Plinth = () => (
+  <RoundedBox scale={[7.2, 0.5, 7.2]} position={[0, -0.25, 0]}>
+    <meshPhysicalMaterial specularIntensity={1} metalness={0.7} clearcoat={1} color={"#99aaff"} />
+  </RoundedBox>
+)
 export default function App() {
   const { ref, onLeft, onRight } = useIsometricRotation()
 
@@ -370,6 +375,7 @@ export default function App() {
           <Center>
             <Room />
           </Center>
+          <Plinth />
         </Suspense>
         <OrbitControls
           ref={ref}
