@@ -297,6 +297,8 @@ const WinContainer = styled("div", {
 
   fontFamily: "monospace",
 
+  backdropFilter: "blur(8px)",
+
   h2: { fontSize: 48 },
   p: { fontSize: 24 },
 
