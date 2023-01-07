@@ -1,10 +1,15 @@
-import { Center, Line, OrbitControls, OrthographicCamera } from "@react-three/drei"
+import {
+  Center,
+  Cylinder, Line,
+  OrbitControls, PerspectiveCamera,
+  Torus
+} from "@react-three/drei"
 import { Canvas } from "@react-three/fiber"
 import { atom, useAtom, useAtomValue } from "jotai"
-import React, { Suspense, useState } from "react"
-import { enumerateWinningLines, checkForWin } from "./winningLines"
 import { useControls } from "leva"
+import React, { Suspense, useEffect, useState } from "react"
 import { Vector3 } from "three"
+import { checkForWin, enumerateWinningLines } from "./winningLines"
 
 function randomHexcode() {
   return (
@@ -46,7 +51,25 @@ const Cell = React.forwardRef(({ position, onClick, player }, ref) => {
 
   return (
     <group ref={ref}>
+      <Torus position={position} rotation-x={Math.PI / 2} args={[0.5, 0.2]}>
+        <meshStandardMaterial
+          transparent
+          opacity={0.98}
+          color={hovered ? "blue" : player === "red" ? "#ff0000" : "#ffff00"}
+        />
+      </Torus>
+      <Cylinder scale={[0.15, 1, 0.15]} position={position}>
+        <meshPhysicalMaterial
+          specularIntensity={1}
+          metalness={0.7}
+          clearcoat={1}
+          opacity={0.8}
+          transparent
+          color={hovered ? "blue" : player === "red" ? "#ffaaaa" : "#ffffaa"}
+        />
+      </Cylinder>
       <mesh
+        visible={false}
         rotation={[-Math.PI / 2, 0, 0]}
         onPointerEnter={(e) => {
           setHovered(true)
@@ -55,7 +78,7 @@ const Cell = React.forwardRef(({ position, onClick, player }, ref) => {
         onClick={(event) => onClick(event)}
         onPointerLeave={() => setHovered(false)}
         position={position}>
-        <boxGeometry args={[1.5, 1.5, 1.5]} />
+        <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial color={hovered ? "blue" : player === "red" ? "#ff0000" : "#ffff00"} />
       </mesh>
     </group>
@@ -89,7 +112,7 @@ function grid3(w, h, d) {
 
 const CELL_COUNT = 4
 const CELL_SPACING = 1.66
-const BASE_OFFSET = 0.5
+const BASE_OFFSET = 0.25
 
 const cellsAtom = atom([])
 const redCellsAtom = atom((get) =>
@@ -148,7 +171,7 @@ function Room() {
 
   return (
     <>
-      <pointLight position={[30, 3, -10]} color="blue" intensity={10} />
+      <pointLight position={[30, 3, -10]} color="blue" intensity={7} />
       <group position={[0, 0, 0]}>
         {bases.map((pos) => (
           <Base
@@ -161,17 +184,22 @@ function Room() {
             }}
           />
         ))}
-        {cells.map(({ cell: v, player }) => (
-          <Cell
-            player={player}
-            key={`cell-${[v.x, v.y, v.z]}`}
-            position={v.clone().multiplyScalar(CELL_SPACING).add(new Vector3(0, BASE_OFFSET, 0))}
-            onClick={(event) => {
-              addCell(newCellPosition(v, event), takingTurn)
-              event.stopPropagation()
-            }}
-          />
-        ))}
+        <group position={[0, BASE_OFFSET, 0]}>
+          {cells.map(({ cell: v, player }) => (
+            <Cell
+              player={player}
+              key={`cell-${[v.x, v.y, v.z]}`}
+              position={v
+                .clone()
+                .multiplyVectors(v.clone(), new Vector3(CELL_SPACING, 1, CELL_SPACING))
+                .add(new Vector3(0, BASE_OFFSET, 0))}
+              onClick={(event) => {
+                addCell(newCellPosition(v, event), takingTurn)
+                event.stopPropagation()
+              }}
+            />
+          ))}
+        </group>
         {showLines && (
           <group position={[0, BASE_OFFSET, 0]}>
             {winningLines.map((l) => {
@@ -202,6 +230,13 @@ const useIsometricRotation = () => {
     }
   }
 
+  useEffect(() => {
+    if (ref.current) {
+      const { setAzimuthalAngle } = ref.current
+      setAzimuthalAngle(Math.PI / 4)
+    }
+  }, [])
+
   return {
     ref,
     onLeft: () => rotate(-Math.PI / 2),
@@ -221,7 +256,7 @@ export default function App() {
 
       <Canvas>
         <color attach="background" args={["black"]} />
-        <OrthographicCamera makeDefault position={[15, 15, 15]} zoom={80} />
+        <PerspectiveCamera makeDefault position={[15, 15, 15]} zoom={5} fov={90} />
         <ambientLight intensity={0.1} />
         <pointLight position={[10, 10, 10]} />
         <Suspense fallback={null}>
@@ -231,8 +266,8 @@ export default function App() {
         </Suspense>
         <OrbitControls
           ref={ref}
-          minPolarAngle={Math.PI / 3.5}
-          maxPolarAngle={Math.PI / 3.5}
+          // minPolarAngle={Math.PI / 3.5}
+          // maxPolarAngle={Math.PI / 3.5}
           enableRotate={true}
           enablePan={false}
           enableDamping={true}
