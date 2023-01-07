@@ -1,15 +1,11 @@
-import {
-  Center,
-  Cylinder, Line,
-  OrbitControls, PerspectiveCamera,
-  Torus
-} from "@react-three/drei"
-import { Canvas } from "@react-three/fiber"
-import { atom, useAtom, useAtomValue } from "jotai"
+import { Center, Cylinder, Line, OrbitControls, PerspectiveCamera, Torus } from "@react-three/drei"
+import { Canvas, useFrame } from "@react-three/fiber"
+import { atom, useAtom, useAtomValue, useSetAtom } from "jotai"
 import { useControls } from "leva"
 import React, { Suspense, useEffect, useState } from "react"
 import { Vector3 } from "three"
 import { checkForWin, enumerateWinningLines } from "./winningLines"
+import { styled } from "@stitches/react"
 
 function randomHexcode() {
   return (
@@ -46,24 +42,35 @@ const Base = React.forwardRef(({ position, onClick }, ref) => {
   )
 })
 
-const Cell = React.forwardRef(({ position, onClick, player }, ref) => {
+const usePulse = (ref, enable, min, max, initial) => {
+  useFrame(({ clock }) => {
+    if (enable) {
+      const t = clock.getElapsedTime()
+      const scale = Math.sin(t * 4) * (max - min) + min
+      ref.current.material.opacity = scale
+    } else {
+      ref.current.material.opacity = initial
+    }
+  })
+}
+
+const Cell = React.forwardRef(({ position, onClick, player, highlight }, ref) => {
   const [hovered, setHovered] = useState(false)
+  const meshRef = React.useRef()
+
+  usePulse(meshRef, highlight, 0.8, 1, 0.98)
 
   return (
     <group ref={ref}>
-      <Torus position={position} rotation-x={Math.PI / 2} args={[0.5, 0.2]}>
-        <meshStandardMaterial
-          transparent
-          opacity={0.98}
-          color={hovered ? "blue" : player === "red" ? "#ff0000" : "#ffff00"}
-        />
+      <Torus ref={meshRef} position={position} rotation-x={Math.PI / 2} args={[0.5, 0.2]}>
+        <meshStandardMaterial transparent color={hovered ? "blue" : player === "red" ? "#ff0000" : "#ffff00"} />
       </Torus>
       <Cylinder scale={[0.15, 1, 0.15]} position={position}>
         <meshPhysicalMaterial
           specularIntensity={1}
           metalness={0.7}
           clearcoat={1}
-          opacity={0.8}
+          opacity={highlight ? 1 : 0.8}
           transparent
           color={hovered ? "blue" : player === "red" ? "#ffaaaa" : "#ffffaa"}
         />
@@ -114,6 +121,8 @@ const CELL_COUNT = 4
 const CELL_SPACING = 1.66
 const BASE_OFFSET = 0.25
 
+const gameStateAtom = atom("playing")
+
 const cellsAtom = atom([])
 const redCellsAtom = atom((get) =>
   get(cellsAtom)
@@ -128,9 +137,13 @@ const yellowCellsAtom = atom((get) =>
 
 const useCells = () => {
   const [cells, setCells] = useAtom(cellsAtom)
+  const gameState = useAtomValue(gameStateAtom)
 
   const addCell = (move, player) =>
     setCells((cells) => {
+      // If game is over, don't add any more cells
+      if (gameState !== "playing") return cells
+
       // bail if outside bounds
       if (move.x < 0 || move.x >= CELL_COUNT) return cells
       if (move.y < 0 || move.y >= CELL_COUNT) return cells
@@ -155,19 +168,37 @@ const newCellPosition = (clickedCell, { face }) => {
   return clickedCell.clone().add(new Vector3(normal.x, normal.z, -normal.y))
 }
 
+const useCheckForWin = (redWinningLine, yellowWinningLine) => {
+  const setGameState = useSetAtom(gameStateAtom)
+
+  useEffect(() => {
+    if (redWinningLine) {
+      setGameState("red-won")
+    } else if (yellowWinningLine) {
+      setGameState("yellow-won")
+    }
+  }, [redWinningLine, yellowWinningLine, setGameState])
+}
+
+function inWinningLine(cell, winningLine) {
+  if (!winningLine) return false
+  return winningLine.some((lineCell) => lineCell.equals(cell))
+}
+
 function Room() {
   const { cells, addCell } = useCells()
   const redCells = useAtomValue(redCellsAtom)
   const yellowCells = useAtomValue(yellowCellsAtom)
   const bases = grid2(CELL_COUNT, CELL_COUNT)
-  const { showLines } = useControls({ showLines: true })
+  const { showLines } = useControls({ showLines: false })
 
   const takingTurn = cells.length % 2 === 0 ? "red" : "yellow"
-  const redWin = checkForWin(redCells, winningLines)
-  const yellowWin = checkForWin(yellowCells, winningLines)
+  const redWinningLine = checkForWin(redCells, winningLines)
+  const yellowWinningLine = checkForWin(yellowCells, winningLines)
 
-  console.log("HAS WIN?", redWin, yellowWin)
-  console.log("cells", cells)
+  console.log("HAS WIN?", redWinningLine, yellowWinningLine)
+
+  useCheckForWin(redWinningLine, yellowWinningLine)
 
   return (
     <>
@@ -197,6 +228,7 @@ function Room() {
                 addCell(newCellPosition(v, event), takingTurn)
                 event.stopPropagation()
               }}
+              highlight={inWinningLine(v, redWinningLine) || inWinningLine(v, yellowWinningLine)}
             />
           ))}
         </group>
@@ -244,16 +276,91 @@ const useIsometricRotation = () => {
   }
 }
 
+const ControlsWrapper = styled("div", {
+  position: "absolute",
+  bottom: 24,
+  left: 24,
+  width: 180,
+})
+
+const WinContainer = styled("div", {
+  position: "absolute",
+  top: 24,
+  width: "80vw",
+  left: "50%",
+  transform: "translateX(-50%)",
+  textAlign: "center",
+
+  borderWidth: 2,
+  borderStyle: "solid",
+  padding: 24,
+
+  fontFamily: "monospace",
+
+  h2: { fontSize: 48 },
+  p: { fontSize: 24 },
+
+  variants: {
+    redOrYellow: {
+      "red-won": {
+        color: "red",
+        borderColor: "red",
+      },
+      "yellow-won": {
+        color: "yellow",
+        borderColor: "yellow",
+      },
+    },
+  },
+})
+
+const GameButton = styled("button", {
+  margin: 0,
+  borderRadius: 2,
+  padding: 4,
+
+  fontFamily: "monospace",
+
+  border: "1px solid rgb(241, 200, 146)",
+  boxShadow: "0px 4px 1px 0px rgb(241, 200, 146)",
+
+  "&:hover": {
+    boxShadow: "0px 3px 0px 0px rgb(241, 200, 146)",
+    transform: "translate(0, 1px)",
+  },
+  "&:active": {
+    boxShadow: "0px 1px 0px 0px rgb(241, 200, 146)",
+    transform: "translate(0, 3px)",
+  },
+})
+
+const WinBanner = () => {
+  const [gameState, setGameState] = useAtom(gameStateAtom)
+  const setCells = useSetAtom(cellsAtom)
+
+  if (gameState === "playing") return null
+
+  const winText = gameState === "red-won" ? "Red Wins!" : "Yellow Wins!"
+
+  const reset = () => {
+    setCells([])
+    setGameState("playing")
+  }
+
+  return (
+    <WinContainer redOrYellow={gameState}>
+      <h2>Game Over</h2>
+      <p>{winText}</p>
+      <GameButton onClick={reset}>New Game</GameButton>
+    </WinContainer>
+  )
+}
+
 export default function App() {
   const { ref, onLeft, onRight } = useIsometricRotation()
 
   return (
     <>
-      <div>
-        <button onClick={onLeft}>Left</button>
-        <button onClick={onRight}>Right</button>
-      </div>
-
       <Canvas>
         <color attach="background" args={["black"]} />
         <PerspectiveCamera makeDefault position={[15, 15, 15]} zoom={5} fov={90} />
@@ -274,6 +381,13 @@ export default function App() {
           dampingFactor={0.6}
         />
       </Canvas>
+      <ControlsWrapper>
+        <GameButton onClick={onLeft}>Rotate Left</GameButton>
+        <br />
+        <br />
+        <GameButton onClick={onRight}>Rotate Right</GameButton>
+      </ControlsWrapper>
+      <WinBanner />
     </>
   )
 }

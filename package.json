@@ -7,6 +7,7 @@
   "dependencies": {
     "@react-three/drei": "^9.51.13",
     "@react-three/fiber": "^8.10.0",
+    "@stitches/react": "^1.2.8",
     "@types/rx": "4.1.2",
     "jotai": "^1.12.1",
     "leva": "^0.9.34",

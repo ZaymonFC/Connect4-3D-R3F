@@ -123,9 +123,9 @@ export function checkForWin(cells: Vector3[], winningLines: Vector3[][]) {
     }
 
     if (hasWin) {
-      return true
+      return line
     }
   }
 
-  return false
+  return undefined
 }
