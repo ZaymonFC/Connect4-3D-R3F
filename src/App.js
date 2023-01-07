@@ -1,6 +1,6 @@
 import { Center, Line, OrbitControls, OrthographicCamera } from "@react-three/drei"
 import { Canvas } from "@react-three/fiber"
-import { atom, useAtom } from "jotai"
+import { atom, useAtom, useAtomValue } from "jotai"
 import React, { Suspense, useState } from "react"
 import { enumerateWinningLines, checkForWin } from "./winningLines"
 import { useControls } from "leva"
@@ -41,7 +41,7 @@ const Base = React.forwardRef(({ position, onClick }, ref) => {
   )
 })
 
-const Cell = React.forwardRef(({ position, onClick }, ref) => {
+const Cell = React.forwardRef(({ position, onClick, player }, ref) => {
   const [hovered, setHovered] = useState(false)
 
   return (
@@ -56,7 +56,7 @@ const Cell = React.forwardRef(({ position, onClick }, ref) => {
         onPointerLeave={() => setHovered(false)}
         position={position}>
         <boxGeometry args={[1.5, 1.5, 1.5]} />
-        <meshStandardMaterial color={hovered ? "blue" : "#5599ff"} />
+        <meshStandardMaterial color={hovered ? "blue" : player === "red" ? "#ff0000" : "#ffff00"} />
       </mesh>
     </group>
   )
@@ -92,20 +92,30 @@ const CELL_SPACING = 1.66
 const BASE_OFFSET = 0.5
 
 const cellsAtom = atom([])
+const redCellsAtom = atom((get) =>
+  get(cellsAtom)
+    .filter((v) => v.player === "red")
+    .map((m) => m.cell),
+)
+const yellowCellsAtom = atom((get) =>
+  get(cellsAtom)
+    .filter((v) => v.player === "yellow")
+    .map((m) => m.cell),
+)
 
 const useCells = () => {
   const [cells, setCells] = useAtom(cellsAtom)
 
-  const addCell = (cell) =>
+  const addCell = (move, player) =>
     setCells((cells) => {
-      if (cells.find((v) => v.equals(cell))) {
+      if (cells.find(({ cell }) => cell.equals(move))) {
         return cells
       } else {
-        return [...cells, cell]
+        return [...cells, { cell: move, player }]
       }
     })
 
-  return { cells, addCell: addCell }
+  return { cells, addCell }
 }
 
 const newCellPosition = (clickedCell, { face }) => {
@@ -115,12 +125,16 @@ const newCellPosition = (clickedCell, { face }) => {
 
 function Room() {
   const { cells, addCell } = useCells()
+  const redCells = useAtomValue(redCellsAtom)
+  const yellowCells = useAtomValue(yellowCellsAtom)
   const bases = grid2(CELL_COUNT, CELL_COUNT)
   const { showLines } = useControls({ showLines: true })
 
-  const hasWin = checkForWin(cells, winningLines)
+  const takingTurn = cells.length % 2 === 0 ? "red" : "yellow"
+  const redWin = checkForWin(redCells, winningLines)
+  const yellowWin = checkForWin(yellowCells, winningLines)
 
-  console.log("HAS WIN?", hasWin)
+  console.log("HAS WIN?", redWin, yellowWin)
   console.log("cells", cells)
 
   return (
@@ -133,17 +147,18 @@ function Room() {
             position={pos.clone().multiplyScalar(CELL_SPACING)}
             onClick={(event) => {
               const [x, y, z] = pos
-              addCell(new Vector3(x, y, z))
+              addCell(new Vector3(x, y, z), takingTurn)
               event.stopPropagation()
             }}
           />
         ))}
-        {cells.map((v) => (
+        {cells.map(({ cell: v, player }) => (
           <Cell
+            player={player}
             key={`cell-${[v.x, v.y, v.z]}`}
             position={v.clone().multiplyScalar(CELL_SPACING).add(new Vector3(0, BASE_OFFSET, 0))}
             onClick={(event) => {
-              addCell(newCellPosition(v, event))
+              addCell(newCellPosition(v, event), takingTurn)
               event.stopPropagation()
             }}
           />
