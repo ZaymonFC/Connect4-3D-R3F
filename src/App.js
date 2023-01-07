@@ -2,10 +2,17 @@ import { Center, Line, OrbitControls, OrthographicCamera } from "@react-three/dr
 import { Canvas } from "@react-three/fiber"
 import { atom, useAtom } from "jotai"
 import React, { Suspense, useState } from "react"
-import { enumerateWinningLines } from "./winningLines"
+import { enumerateWinningLines, checkForWin } from "./winningLines"
+import { useControls } from "leva"
+import { Vector3 } from "three"
 
 function randomHexcode() {
-  return "#" + Math.floor(Math.random() * 16777215).toString(16)
+  return (
+    "#" +
+    Math.floor(Math.random() * 16777215)
+      .toString(16)
+      .padStart(6, "0")
+  )
 }
 
 const winningLines = enumerateWinningLines()
@@ -18,7 +25,6 @@ const Base = React.forwardRef(({ position, onClick }, ref) => {
     <group ref={ref}>
       <mesh
         onClick={(e) => {
-          console.log("Clicked", position.map(Math.floor))
           onClick(e)
         }}
         rotation={[-Math.PI / 2, 0, 0]}
@@ -60,7 +66,7 @@ function grid2(w, h) {
   const res = []
   for (let x = 0; x < w; x++) {
     for (let y = 0; y < h; y++) {
-      res.push([x, 0, y])
+      res.push(new Vector3(x, 0, y))
     }
   }
 
@@ -92,7 +98,7 @@ const useCells = () => {
 
   const addCell = (cell) =>
     setCells((cells) => {
-      if (cells.find(([x, y, z]) => x === cell[0] && y === cell[1] && z === cell[2])) {
+      if (cells.find((v) => v.equals(cell))) {
         return cells
       } else {
         return [...cells, cell]
@@ -103,45 +109,60 @@ const useCells = () => {
 }
 
 const newCellPosition = (clickedCell, { face }) => {
-  const normal = face.normal.multiplyScalar(CELL_SPACING)
-  return [clickedCell[0] + normal.x, clickedCell[1] + normal.z, clickedCell[2] - normal.y]
+  const normal = face.normal
+  return clickedCell.clone().add(new Vector3(normal.x, normal.z, -normal.y))
 }
 
 function Room() {
   const { cells, addCell } = useCells()
-  const base = grid2(CELL_COUNT, CELL_COUNT).map(([x, y, z]) => [x * CELL_SPACING, y * CELL_SPACING, z * CELL_SPACING])
+  const bases = grid2(CELL_COUNT, CELL_COUNT)
+  const { showLines } = useControls({ showLines: true })
+
+  const hasWin = checkForWin(cells, winningLines)
+
+  console.log("HAS WIN?", hasWin)
+  console.log("cells", cells)
 
   return (
     <>
       <pointLight position={[30, 3, -10]} color="blue" intensity={10} />
       <group position={[0, 0, 0]}>
-        {base.map((pos) => (
+        {bases.map((pos) => (
           <Base
-            key={`base-${pos}`}
-            position={pos}
+            key={`base-${pos.toArray()}`}
+            position={pos.clone().multiplyScalar(CELL_SPACING)}
             onClick={(event) => {
-              const [x, z, y] = pos
-              addCell([x, z + BASE_OFFSET, y])
+              const [x, y, z] = pos
+              addCell(new Vector3(x, y, z))
               event.stopPropagation()
             }}
           />
         ))}
-        {cells.map(([x, z, y]) => (
+        {cells.map((v) => (
           <Cell
-            key={`cell-${[x, z, y]}`}
-            position={[x, z + BASE_OFFSET, y]}
+            key={`cell-${[v.x, v.y, v.z]}`}
+            position={v.clone().multiplyScalar(CELL_SPACING).add(new Vector3(0, BASE_OFFSET, 0))}
             onClick={(event) => {
-              addCell(newCellPosition([x, z, y], event))
+              addCell(newCellPosition(v, event))
               event.stopPropagation()
             }}
           />
         ))}
-        <group position={[0, BASE_OFFSET, 0]}>
-          {winningLines.map((l) => {
-            const col = randomHexcode()
-            return <Line lineWidth={1} points={l.map((p) => p.multiplyScalar(CELL_SPACING))} color={col} key={col} />
-          })}
-        </group>
+        {showLines && (
+          <group position={[0, BASE_OFFSET, 0]}>
+            {winningLines.map((l) => {
+              const col = randomHexcode()
+              return (
+                <Line
+                  lineWidth={1}
+                  points={l.map((p) => p.clone().multiplyScalar(CELL_SPACING))}
+                  color={col}
+                  key={col}
+                />
+              )
+            })}
+          </group>
+        )}
       </group>
     </>
   )
