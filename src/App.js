@@ -9,12 +9,15 @@ const Base = React.forwardRef(({ position, onClick }, ref) => {
   return (
     <group ref={ref}>
       <mesh
-        onClick={() => {
+        onClick={(e) => {
           console.log("Clicked", position.map(Math.floor))
-          onClick()
+          onClick(e)
         }}
         rotation={[-Math.PI / 2, 0, 0]}
-        onPointerEnter={() => setHovered(true)}
+        onPointerEnter={(e) => {
+          setHovered(true)
+          e.stopPropagation()
+        }}
         onPointerLeave={() => setHovered(false)}
         position={position}>
         <boxGeometry args={[1.5, 1.5, 0.05]} />
@@ -31,9 +34,9 @@ const Cell = React.forwardRef(({ position, onClick }, ref) => {
     <group ref={ref}>
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        onPointerMove={({ face, faceIndex }) => {
+        onPointerEnter={(e) => {
           setHovered(true)
-          console.log(face.normal, faceIndex)
+          e.stopPropagation()
         }}
         onClick={(event) => onClick(event)}
         onPointerLeave={() => setHovered(false)}
@@ -108,9 +111,10 @@ function Room() {
           <Base
             key={`base-${pos}`}
             position={pos}
-            onClick={() => {
+            onClick={(event) => {
               const [x, z, y] = pos
               addCell([x, z + BASE_OFFSET, y])
+              event.stopPropagation()
             }}
           />
         ))}
@@ -118,7 +122,10 @@ function Room() {
           <Cell
             key={`cell-${[x, z, y]}`}
             position={[x, z + BASE_OFFSET, y]}
-            onClick={(event) => addCell(newCellPosition([x, z, y], event))}
+            onClick={(event) => {
+              addCell(newCellPosition([x, z, y], event))
+              event.stopPropagation()
+            }}
           />
         ))}
       </group>
