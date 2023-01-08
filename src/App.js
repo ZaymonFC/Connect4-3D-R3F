@@ -6,18 +6,9 @@ import { useControls } from "leva"
 import React, { Suspense, useEffect, useState } from "react"
 import { Vector3 } from "three"
 import { checkForWin, enumerateWinningLines } from "./winningLines"
-
-function randomHexcode() {
-  return (
-    "#" +
-    Math.floor(Math.random() * 16777215)
-      .toString(16)
-      .padStart(6, "0")
-  )
-}
-
-const winningLines = enumerateWinningLines()
-console.log(winningLines)
+import { grid2 } from "./grid"
+import { useCameraControls } from "./useCameraControls"
+import { randomHexcode } from "./helpers"
 
 const Base = React.forwardRef(({ position, onClick }, ref) => {
   const [hovered, setHovered] = useState(false)
@@ -92,43 +83,22 @@ const Cell = React.forwardRef(({ position, onClick, player, highlight }, ref) =>
   )
 })
 
-function grid2(w, h) {
-  const res = []
-  for (let x = 0; x < w; x++) {
-    for (let y = 0; y < h; y++) {
-      res.push(new Vector3(x, 0, y))
-    }
-  }
-
-  return res
-}
-
-function grid3(w, h, d) {
-  const res = []
-
-  for (let x = 0; x < w; x++) {
-    for (let y = 0; y < h; y++) {
-      for (let z = 0; z < d; z++) {
-        res.push([x, y, z])
-      }
-    }
-  }
-
-  return res
-}
-
+// --- Constants and Module Scope Variables ---
 const CELL_COUNT = 4
 const CELL_SPACING = 1.66
 const BASE_OFFSET = 0.25
+const winningLines = enumerateWinningLines()
 
 const gameStateAtom = atom("playing")
 
 const cellsAtom = atom([])
+
 const redCellsAtom = atom((get) =>
   get(cellsAtom)
     .filter((v) => v.player === "red")
     .map((m) => m.cell),
 )
+
 const yellowCellsAtom = atom((get) =>
   get(cellsAtom)
     .filter((v) => v.player === "yellow")
@@ -164,11 +134,10 @@ const useCells = () => {
 }
 
 const newCellPosition = (clickedCell, { face }) => {
-  const normal = face.normal
-  return clickedCell.clone().add(new Vector3(normal.x, normal.z, -normal.y))
+  return clickedCell.clone().add(new Vector3(0, 1, 0))
 }
 
-const useCheckForWin = (redWinningLine, yellowWinningLine) => {
+const useTrackGameState = (redWinningLine, yellowWinningLine) => {
   const setGameState = useSetAtom(gameStateAtom)
 
   useEffect(() => {
@@ -176,8 +145,20 @@ const useCheckForWin = (redWinningLine, yellowWinningLine) => {
       setGameState("red-won")
     } else if (yellowWinningLine) {
       setGameState("yellow-won")
+    } else {
+      setGameState("playing")
     }
   }, [redWinningLine, yellowWinningLine, setGameState])
+}
+
+const useUndo = () => {
+  const setCells = useSetAtom(cellsAtom)
+
+  return () =>
+    setCells((cells) => {
+      if (cells.length === 0) return cells
+      return [...cells].slice(0, -1)
+    })
 }
 
 function inWinningLine(cell, winningLine) {
@@ -185,20 +166,33 @@ function inWinningLine(cell, winningLine) {
   return winningLine.some((lineCell) => lineCell.equals(cell))
 }
 
+function DebugLines({ winningLines }) {
+  const { showLines } = useControls({ showLines: false })
+  if (!showLines) return null
+
+  return (
+    <group position={[0, BASE_OFFSET, 0]}>
+      {winningLines.map((l) => {
+        const col = randomHexcode()
+        return (
+          <Line lineWidth={1} points={l.map((p) => p.clone().multiplyScalar(CELL_SPACING))} color={col} key={col} />
+        )
+      })}
+    </group>
+  )
+}
+
 function Room() {
   const { cells, addCell } = useCells()
   const redCells = useAtomValue(redCellsAtom)
   const yellowCells = useAtomValue(yellowCellsAtom)
   const bases = grid2(CELL_COUNT, CELL_COUNT)
-  const { showLines } = useControls({ showLines: false })
 
   const takingTurn = cells.length % 2 === 0 ? "red" : "yellow"
   const redWinningLine = checkForWin(redCells, winningLines)
   const yellowWinningLine = checkForWin(yellowCells, winningLines)
 
-  console.log("HAS WIN?", redWinningLine, yellowWinningLine)
-
-  useCheckForWin(redWinningLine, yellowWinningLine)
+  useTrackGameState(redWinningLine, yellowWinningLine)
 
   return (
     <>
@@ -232,48 +226,10 @@ function Room() {
             />
           ))}
         </group>
-        {showLines && (
-          <group position={[0, BASE_OFFSET, 0]}>
-            {winningLines.map((l) => {
-              const col = randomHexcode()
-              return (
-                <Line
-                  lineWidth={1}
-                  points={l.map((p) => p.clone().multiplyScalar(CELL_SPACING))}
-                  color={col}
-                  key={col}
-                />
-              )
-            })}
-          </group>
-        )}
+        {/* <DebugLines winningLines={winningLines} /> */}
       </group>
     </>
   )
-}
-
-const useIsometricRotation = () => {
-  const ref = React.useRef(null)
-
-  const rotate = (rotation) => {
-    if (ref.current) {
-      const { setAzimuthalAngle, getAzimuthalAngle } = ref.current
-      setAzimuthalAngle(getAzimuthalAngle() + rotation)
-    }
-  }
-
-  useEffect(() => {
-    if (ref.current) {
-      const { setAzimuthalAngle } = ref.current
-      setAzimuthalAngle(Math.PI / 4)
-    }
-  }, [])
-
-  return {
-    ref,
-    onLeft: () => rotate(-Math.PI / 2),
-    onRight: () => rotate(Math.PI / 2),
-  }
 }
 
 const ControlsWrapper = styled("div", {
@@ -285,14 +241,17 @@ const ControlsWrapper = styled("div", {
 
 const WinContainer = styled("div", {
   position: "absolute",
-  top: 24,
-  width: "80vw",
+  top: "3vh",
+  width: "90vw",
   left: "50%",
   transform: "translateX(-50%)",
   textAlign: "center",
 
   borderWidth: 2,
   borderStyle: "solid",
+
+  borderRadius: 4,
+
   padding: 24,
 
   fontFamily: "monospace",
@@ -304,14 +263,8 @@ const WinContainer = styled("div", {
 
   variants: {
     redOrYellow: {
-      "red-won": {
-        color: "red",
-        borderColor: "red",
-      },
-      "yellow-won": {
-        color: "yellow",
-        borderColor: "yellow",
-      },
+      "red-won": { color: "red", borderColor: "red" },
+      "yellow-won": { color: "yellow", borderColor: "yellow" },
     },
   },
 })
@@ -319,19 +272,24 @@ const WinContainer = styled("div", {
 const GameButton = styled("button", {
   margin: 0,
   borderRadius: 2,
-  padding: 4,
+  padding: 6,
+  paddingInline: 8,
 
   fontFamily: "monospace",
+  fontSize: 16,
 
-  border: "1px solid rgb(241, 200, 146)",
-  boxShadow: "0px 4px 1px 0px rgb(241, 200, 146)",
+  color: "white",
+  backgroundColor: "#99aaff",
+
+  border: "1px solid rgb(124, 139, 217)",
+  boxShadow: "0px 4px 1px 0px rgb(124, 139, 217)",
 
   "&:hover": {
-    boxShadow: "0px 3px 0px 0px rgb(241, 200, 146)",
+    boxShadow: "0px 3px 0px 0px rgb(124, 139, 217)",
     transform: "translate(0, 1px)",
   },
   "&:active": {
-    boxShadow: "0px 1px 0px 0px rgb(241, 200, 146)",
+    boxShadow: "0px 1px 0px 0px rgb(124, 139, 217)",
     transform: "translate(0, 3px)",
   },
 })
@@ -364,7 +322,8 @@ const Plinth = () => (
   </RoundedBox>
 )
 export default function App() {
-  const { ref, onLeft, onRight } = useIsometricRotation()
+  const { ref, onLeft, onRight } = useCameraControls()
+  const onUndo = useUndo()
 
   return (
     <>
@@ -374,22 +333,19 @@ export default function App() {
         <ambientLight intensity={0.1} />
         <pointLight position={[10, 10, 10]} />
         <Suspense fallback={null}>
-          <Center>
-            <Room />
-          </Center>
-          <Plinth />
+          <group position={[0, -1, 0]}>
+            <Center>
+              <Room />
+            </Center>
+            <Plinth />
+          </group>
         </Suspense>
-        <OrbitControls
-          ref={ref}
-          // minPolarAngle={Math.PI / 3.5}
-          // maxPolarAngle={Math.PI / 3.5}
-          enableRotate={true}
-          enablePan={false}
-          enableDamping={true}
-          dampingFactor={0.6}
-        />
+        <OrbitControls ref={ref} enableRotate={true} enablePan={false} enableDamping={true} dampingFactor={0.4} />
       </Canvas>
       <ControlsWrapper>
+        <GameButton onClick={onUndo}>Undo</GameButton>
+        <br />
+        <br />
         <GameButton onClick={onLeft}>Rotate Left</GameButton>
         <br />
         <br />
