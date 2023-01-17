@@ -5,10 +5,10 @@ import { atom, useAtom, useAtomValue, useSetAtom } from "jotai"
 import { useControls } from "leva"
 import React, { Suspense, useEffect, useState } from "react"
 import { Vector3 } from "three"
-import { checkForWin, enumerateWinningLines } from "./winningLines"
 import { grid2 } from "./grid"
-import { useCameraControls } from "./useCameraControls"
 import { randomHexcode } from "./helpers"
+import { useCameraControls } from "./useCameraControls"
+import { checkForWin, enumerateWinningLines } from "./winningLines"
 
 const Base = React.forwardRef(({ position, onClick }, ref) => {
   const [hovered, setHovered] = useState(false)
@@ -133,9 +133,8 @@ const useCells = () => {
   return { cells, addCell }
 }
 
-const newCellPosition = (clickedCell, { face }) => {
-  return clickedCell.clone().add(new Vector3(0, 1, 0))
-}
+const upNormal = new Vector3(0, 1, 0)
+const newCellPosition = (clickedCell, _) => clickedCell.clone().add(upNormal)
 
 const useTrackGameState = (redWinningLine, yellowWinningLine) => {
   const setGameState = useSetAtom(gameStateAtom)
@@ -161,9 +160,13 @@ const useUndo = () => {
     })
 }
 
-function inWinningLine(cell, winningLine) {
-  if (!winningLine) return false
-  return winningLine.some((lineCell) => lineCell.equals(cell))
+function inWinningLine(cell, winningLines) {
+  if (!winningLines) return false
+
+  const id = (x) => x
+
+  const winningCells = winningLines.flatMap(id)
+  return winningCells.some((lineCell) => lineCell.equals(cell))
 }
 
 function DebugLines({ winningLines }) {
@@ -189,10 +192,10 @@ function Room() {
   const bases = grid2(CELL_COUNT, CELL_COUNT)
 
   const takingTurn = cells.length % 2 === 0 ? "red" : "yellow"
-  const redWinningLine = checkForWin(redCells, winningLines)
-  const yellowWinningLine = checkForWin(yellowCells, winningLines)
+  const redWinningLines = checkForWin(redCells, winningLines)
+  const yellowWinningLines = checkForWin(yellowCells, winningLines)
 
-  useTrackGameState(redWinningLine, yellowWinningLine)
+  useTrackGameState(redWinningLines, yellowWinningLines)
 
   return (
     <>
@@ -222,7 +225,7 @@ function Room() {
                 addCell(newCellPosition(v, event), takingTurn)
                 event.stopPropagation()
               }}
-              highlight={inWinningLine(v, redWinningLine) || inWinningLine(v, yellowWinningLine)}
+              highlight={inWinningLine(v, redWinningLines) || inWinningLine(v, yellowWinningLines)}
             />
           ))}
         </group>
@@ -321,6 +324,7 @@ const Plinth = () => (
     <meshPhysicalMaterial specularIntensity={1} metalness={0.7} clearcoat={1} color={"#99aaff"} />
   </RoundedBox>
 )
+
 export default function App() {
   const { ref, onLeft, onRight } = useCameraControls()
   const onUndo = useUndo()

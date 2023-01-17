@@ -113,8 +113,11 @@ export function enumerateWinningLines(): Vector3[][] {
 }
 
 export function checkForWin(cells: Vector3[], winningLines: Vector3[][]) {
+  const wins = []
+
   for (const line of winningLines) {
     let hasWin = true
+
     for (const cell of line) {
       if (!cells.find((c) => c.equals(cell))) {
         hasWin = false
@@ -122,10 +125,10 @@ export function checkForWin(cells: Vector3[], winningLines: Vector3[][]) {
       }
     }
 
-    if (hasWin) {
-      return line
-    }
+    if (hasWin) wins.push(line)
   }
+
+  if (wins.length > 0) return wins
 
   return undefined
 }
