@@ -376,7 +376,15 @@ export default function App() {
             <Plinth />
           </group>
         </Suspense>
-        <OrbitControls ref={ref} enableRotate={true} enablePan={false} enableDamping={true} dampingFactor={0.4} />
+        <OrbitControls
+          ref={ref}
+          enableRotate={true}
+          enablePan={false}
+          enableDamping={true}
+          dampingFactor={0.4}
+          maxDistance={80}
+          minDistance={20}
+        />
       </Canvas>
       <ControlsWrapper>
         <GameButton onClick={onUndo}>Undo</GameButton>
