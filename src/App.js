@@ -5,6 +5,7 @@ import { atom, useAtom, useAtomValue, useSetAtom } from "jotai"
 import { useControls } from "leva"
 import React, { Suspense, useEffect, useState } from "react"
 import { Vector3 } from "three"
+import { rgbToHexColor } from "./color"
 import { grid2 } from "./grid"
 import { randomHexcode } from "./helpers"
 import { useCameraControls } from "./useCameraControls"
@@ -45,16 +46,26 @@ const usePulse = (ref, enable, min, max, initial) => {
   })
 }
 
-const Cell = React.forwardRef(({ position, onClick, player, highlight }, ref) => {
+const Cell = React.forwardRef(({ position, onClick, player, highlight, last }, ref) => {
   const [hovered, setHovered] = useState(false)
   const meshRef = React.useRef()
 
   usePulse(meshRef, highlight, 0.8, 1, 0.98)
 
+  let pieceColour = hovered ? [0, 0, 255] : player === "red" ? [255, 0, 0] : [255, 255, 0]
+
+  if (last) {
+    pieceColour = [pieceColour[0], pieceColour[1], 100]
+  }
+
+  const colorCode = rgbToHexColor(pieceColour)
+
+  console.log(last)
+
   return (
     <group ref={ref}>
       <Torus ref={meshRef} position={position} rotation-x={Math.PI / 2} args={[0.5, 0.2]}>
-        <meshStandardMaterial transparent color={hovered ? "blue" : player === "red" ? "#ff0000" : "#ffff00"} />
+        <meshStandardMaterial transparent color={colorCode} />
       </Torus>
       <Cylinder scale={[0.15, 1, 0.15]} position={position}>
         <meshPhysicalMaterial
@@ -63,7 +74,7 @@ const Cell = React.forwardRef(({ position, onClick, player, highlight }, ref) =>
           clearcoat={1}
           opacity={highlight ? 1 : 0.8}
           transparent
-          color={hovered ? "blue" : player === "red" ? "#ffaaaa" : "#ffffaa"}
+          color={colorCode}
         />
       </Cylinder>
       <mesh
@@ -77,11 +88,13 @@ const Cell = React.forwardRef(({ position, onClick, player, highlight }, ref) =>
         onPointerLeave={() => setHovered(false)}
         position={position}>
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color={hovered ? "blue" : player === "red" ? "#ff0000" : "#ffff00"} />
+        <meshStandardMaterial color={colorCode} />
       </mesh>
     </group>
   )
 })
+
+const last = (arr) => arr[arr.length - 1]
 
 // --- Constants and Module Scope Variables ---
 const CELL_COUNT = 4
@@ -92,6 +105,8 @@ const winningLines = enumerateWinningLines()
 const gameStateAtom = atom("playing")
 
 const cellsAtom = atom([])
+
+const lastCellAtom = atom((get) => last(get(cellsAtom)))
 
 const redCellsAtom = atom((get) =>
   get(cellsAtom)
@@ -197,6 +212,10 @@ function Room() {
   const redWinningLines = checkForWin(redCells, winningLines)
   const yellowWinningLines = checkForWin(yellowCells, winningLines)
 
+  const lastCell = useAtomValue(lastCellAtom)
+
+  console.log(lastCell)
+
   useTrackGameState(redWinningLines, yellowWinningLines)
 
   return (
@@ -215,21 +234,25 @@ function Room() {
           />
         ))}
         <group position={[0, BASE_OFFSET, 0]}>
-          {cells.map(({ cell: v, player }) => (
-            <Cell
-              player={player}
-              key={`cell-${[v.x, v.y, v.z]}`}
-              position={v
-                .clone()
-                .multiplyVectors(v.clone(), new Vector3(CELL_SPACING, 1, CELL_SPACING))
-                .add(new Vector3(0, BASE_OFFSET, 0))}
-              onClick={(event) => {
-                addCell(newCellPosition(v, event), takingTurn)
-                event.stopPropagation()
-              }}
-              highlight={inWinningLine(v, redWinningLines) || inWinningLine(v, yellowWinningLines)}
-            />
-          ))}
+          {cells.map(({ cell: v, player }) => {
+            console.log("cell", v)
+            return (
+              <Cell
+                player={player}
+                key={`cell-${[v.x, v.y, v.z]}`}
+                position={v
+                  .clone()
+                  .multiplyVectors(v.clone(), new Vector3(CELL_SPACING, 1, CELL_SPACING))
+                  .add(new Vector3(0, BASE_OFFSET, 0))}
+                onClick={(event) => {
+                  addCell(newCellPosition(v, event), takingTurn)
+                  event.stopPropagation()
+                }}
+                highlight={inWinningLine(v, redWinningLines) || inWinningLine(v, yellowWinningLines)}
+                last={lastCell && v.equals(lastCell.cell)}
+              />
+            )
+          })}
         </group>
         {/* <DebugLines winningLines={winningLines} /> */}
       </group>
