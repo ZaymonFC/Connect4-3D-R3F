@@ -105,6 +105,8 @@ const yellowCellsAtom = atom((get) =>
     .map((m) => m.cell),
 )
 
+const turnAtom = atom((get) => (get(cellsAtom).length % 2 === 0 ? "red" : "yellow"))
+
 const useCells = () => {
   const [cells, setCells] = useAtom(cellsAtom)
   const gameState = useAtomValue(gameStateAtom)
@@ -319,6 +321,36 @@ const WinBanner = () => {
   )
 }
 
+const PlayerIndicatorPrimitive = styled("div", {
+  position: "absolute",
+  top: 24,
+  left: 24,
+  color: "white",
+  textTransform: "uppercase",
+  fontFamily: "monospace",
+
+  borderStyle: "solid",
+  borderWidth: 1,
+  borderRadius: 2,
+
+  padding: 8,
+
+  fontSize: 16,
+
+  variants: {
+    redOrYellow: {
+      red: { color: "red", borderColor: "red" },
+      yellow: { color: "yellow", borderColor: "yellow" },
+    },
+  },
+})
+
+const PlayerIndicator = () => {
+  const turn = useAtomValue(turnAtom)
+
+  return <PlayerIndicatorPrimitive redOrYellow={turn}>{turn}'s move</PlayerIndicatorPrimitive>
+}
+
 const Plinth = () => (
   <RoundedBox scale={[7.2, 0.5, 7.2]} position={[0, -0.25, 0]}>
     <meshPhysicalMaterial specularIntensity={1} metalness={0.7} clearcoat={1} color={"#99aaff"} />
@@ -333,7 +365,7 @@ export default function App() {
     <>
       <Canvas>
         <color attach="background" args={["black"]} />
-        <PerspectiveCamera makeDefault position={[15, 15, 15]} zoom={5} fov={90} />
+        <PerspectiveCamera makeDefault position={[15, 15, 15]} zoom={5} fov={65} />
         <ambientLight intensity={0.1} />
         <pointLight position={[10, 10, 10]} />
         <Suspense fallback={null}>
@@ -355,6 +387,8 @@ export default function App() {
         <br />
         <GameButton onClick={onRight}>Rotate Right</GameButton>
       </ControlsWrapper>
+      <PlayerIndicator />
+
       <WinBanner />
     </>
   )
