@@ -220,7 +220,7 @@ function Room() {
 
   return (
     <>
-      <pointLight position={[30, 3, -10]} color="blue" intensity={7} />
+      <pointLight position={[30, 3, -10]} color="blue" intensity={6} />
       <group position={[0, 0, 0]}>
         {bases.map((pos) => (
           <Base
@@ -270,7 +270,7 @@ const ControlsWrapper = styled("div", {
 const WinContainer = styled("div", {
   position: "absolute",
   top: "3vh",
-  width: "90vw",
+  width: "80vw",
   left: "50%",
   transform: "translateX(-50%)",
   textAlign: "center",
@@ -370,6 +370,9 @@ const PlayerIndicatorPrimitive = styled("div", {
 
 const PlayerIndicator = () => {
   const turn = useAtomValue(turnAtom)
+  const gameState = useAtomValue(gameStateAtom)
+
+  if (gameState === "red-won" || gameState === "yellow-won") return null
 
   return <PlayerIndicatorPrimitive redOrYellow={turn}>{turn}'s move</PlayerIndicatorPrimitive>
 }
