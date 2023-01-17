@@ -5,9 +5,9 @@ import { atom, useAtom, useAtomValue, useSetAtom } from "jotai"
 import { useControls } from "leva"
 import React, { Suspense, useEffect, useState } from "react"
 import { Vector3 } from "three"
-import { rgbToHexColor } from "./color"
+import { match } from "ts-pattern"
+import { randomHexcode, rgbToHexColor } from "./color"
 import { grid2 } from "./grid"
-import { randomHexcode } from "./helpers"
 import { useCameraControls } from "./useCameraControls"
 import { checkForWin, enumerateWinningLines } from "./winningLines"
 
@@ -59,8 +59,6 @@ const Cell = React.forwardRef(({ position, onClick, player, highlight, last }, r
   }
 
   const colorCode = rgbToHexColor(pieceColour)
-
-  console.log(last)
 
   return (
     <group ref={ref}>
@@ -155,16 +153,19 @@ const newCellPosition = (clickedCell, _) => clickedCell.clone().add(upNormal)
 
 const useTrackGameState = (redWinningLine, yellowWinningLine) => {
   const setGameState = useSetAtom(gameStateAtom)
+  const cells = useAtomValue(cellsAtom)
 
   useEffect(() => {
     if (redWinningLine) {
       setGameState("red-won")
     } else if (yellowWinningLine) {
       setGameState("yellow-won")
+    } else if (cells.length === CELL_COUNT ** 3) {
+      setGameState("draw")
     } else {
       setGameState("playing")
     }
-  }, [redWinningLine, yellowWinningLine, setGameState])
+  }, [redWinningLine, yellowWinningLine, cells, setGameState])
 }
 
 const useUndo = () => {
@@ -214,13 +215,11 @@ function Room() {
 
   const lastCell = useAtomValue(lastCellAtom)
 
-  console.log(lastCell)
-
   useTrackGameState(redWinningLines, yellowWinningLines)
 
   return (
     <>
-      <pointLight position={[30, 3, -10]} color="blue" intensity={6} />
+      <pointLight position={[30, 3, -10]} color="blue" intensity={5} />
       <group position={[0, 0, 0]}>
         {bases.map((pos) => (
           <Base
@@ -235,7 +234,6 @@ function Room() {
         ))}
         <group position={[0, BASE_OFFSET, 0]}>
           {cells.map(({ cell: v, player }) => {
-            console.log("cell", v)
             return (
               <Cell
                 player={player}
@@ -293,6 +291,7 @@ const WinContainer = styled("div", {
     redOrYellow: {
       "red-won": { color: "red", borderColor: "red" },
       "yellow-won": { color: "yellow", borderColor: "yellow" },
+      draw: { color: "white", borderColor: "white" },
     },
   },
 })
@@ -322,13 +321,17 @@ const GameButton = styled("button", {
   },
 })
 
-const WinBanner = () => {
+const GameOverBanner = () => {
   const [gameState, setGameState] = useAtom(gameStateAtom)
   const setCells = useSetAtom(cellsAtom)
 
   if (gameState === "playing") return null
 
-  const winText = gameState === "red-won" ? "Red Wins!" : "Yellow Wins!"
+  const winText = match(gameState)
+    .with("red-won", () => "Red Wins!")
+    .with("yellow-won", () => "Yellow Wins!")
+    .with("draw", () => "Draw!")
+    .run()
 
   const reset = () => {
     setCells([])
@@ -339,6 +342,7 @@ const WinBanner = () => {
     <WinContainer redOrYellow={gameState}>
       <h2>Game Over</h2>
       <p>{winText}</p>
+      {gameState === "draw" && <p>Honestly, I'm impressed.</p>}
       <GameButton onClick={reset}>New Game</GameButton>
     </WinContainer>
   )
@@ -372,13 +376,13 @@ const PlayerIndicator = () => {
   const turn = useAtomValue(turnAtom)
   const gameState = useAtomValue(gameStateAtom)
 
-  if (gameState === "red-won" || gameState === "yellow-won") return null
+  if (gameState !== "playing") return null
 
   return <PlayerIndicatorPrimitive redOrYellow={turn}>{turn}'s move</PlayerIndicatorPrimitive>
 }
 
 const Plinth = () => (
-  <RoundedBox scale={[7.2, 0.5, 7.2]} position={[0, -0.25, 0]}>
+  <RoundedBox scale={[7.2, 0.5, 7.2]} position={[0, -0.26, 0]}>
     <meshPhysicalMaterial specularIntensity={1} metalness={0.7} clearcoat={1} color={"#99aaff"} />
   </RoundedBox>
 )
@@ -392,8 +396,7 @@ export default function App() {
       <Canvas>
         <color attach="background" args={["black"]} />
         <PerspectiveCamera makeDefault position={[15, 15, 15]} zoom={5} fov={65} />
-        <ambientLight intensity={0.1} />
-        <pointLight position={[10, 10, 10]} />
+        <pointLight position={[10, 10, 10]} intensity={0.8} />
         <Suspense fallback={null}>
           <group position={[0, -1, 0]}>
             <Center>
@@ -423,7 +426,7 @@ export default function App() {
       </ControlsWrapper>
       <PlayerIndicator />
 
-      <WinBanner />
+      <GameOverBanner />
     </>
   )
 }
